@@ -5,7 +5,7 @@ const isAuthMiddleware = (req, res, next) => {
     }
     else
     {
-        return res.status(401).json("Session Expired Please Login Again.");
+        return res.status(401).json({message: "Session Expired Please Login Again."});
     }
 }
 

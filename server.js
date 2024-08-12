@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
 const mongodbSession = require("connect-mongodb-session")(session);
-const cors = require('cors');
 
 
 //file import
@@ -34,16 +33,8 @@ app.use(session({
     store: store,
     saveUninitialized: false,
     resave: false,
-    cookie: {
-        sameSite: 'None', // Add this line
-        secure: true, // This is required if you're using 'SameSite=None'
-    }
 }))
-app.use(cors({
-    origin: 'http://localhost:3000', // Allow requests from this origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods
-    credentials: true // Allow cookies to be sent with requests
-}));
+
 
 
 
@@ -53,6 +44,10 @@ mongoose.connect(MONGO_URI).then(() => console.log("mongodb conected")).catch((e
 
 app.get("/", (req, res) => {
     return res.send("Hello World!");
+})
+
+app.get("/authentication",(req,res) => {
+    return res.status(200).json({message: "Person is authorized", isAuth: req.session.isAuth || false});
 })
 
 
@@ -175,7 +170,7 @@ app.get("/logout", isAuthMiddleware, (req, res) => {
 
 
 
-app.post("/logout-from-all-devices", isAuthMiddleware, async (req, res) => {
+app.get("/logout-from-all-devices", isAuthMiddleware, async (req, res) => {
     try {
         const deleteDb = await sessionModel.deleteMany({ "session.user.username": req.session.user.username });
 
