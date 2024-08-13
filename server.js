@@ -46,8 +46,8 @@ app.get("/", (req, res) => {
     return res.send("Hello World!");
 })
 
-app.get("/authentication",(req,res) => {
-    return res.status(200).json({message: "Person is authorized", isAuth: req.session.isAuth || false});
+app.get("/authentication", (req, res) => {
+    return res.status(200).json({ message: "Person is authorized", isAuth: req.session.isAuth || false });
 })
 
 
@@ -265,6 +265,92 @@ app.post("/delete-todo", isAuthMiddleware, async (req, res) => {
         return res.status(200).json({ message: "Todo Deleted Successfull", data: todoDbPrev });
     }
     catch (err) {
+        return res.status(500).json({ message: "Internal Server Error", error: err });
+    }
+})
+
+app.post("/todo-start", isAuthMiddleware, async (req, res) => {
+    const { id } = req.body;
+    try {
+        const task = await todoModel.findOne({ _id: id });
+
+        if (!task) {
+            return res.status(404).json({ message: "Todo Not Found" });
+        }
+
+        if (task.status !== "Pending") {
+            return res.status(400).json({ message: "Task already started" });
+        }
+
+        task.startTime = Date.now();
+        task.status = "Ongoing";
+        await task.save();
+        return res.status(200).json({ message: "Task is started", data: task });
+    }
+    catch (err) {
+        return res.status(500).json({ message: "Internal Server Error", error: err });
+    }
+})
+
+app.post("/todo-pause", isAuthMiddleware, async (req, res) => {
+    const { id } = req.body;
+    try {
+        const task = await todoModel.findOne({ _id: id });
+        console.log(task);
+        if (!task) {
+            return res.status(404).json({ message: "Todo Not Found" });
+        }
+        if (task.status !== 'Ongoing') return res.status(400).json({ message: 'Task is not ongoing' });
+
+        const elapsedTime = Date.now() - new Date(task.startTime);
+        task.elapsedTime += elapsedTime;
+        task.pauseTime = Date.now();
+        task.status = 'Paused';
+        await task.save();
+        return res.status(200).json({message: "Task is Paused", data: task});
+    }
+    catch (err) {
+        return res.status(500).json({ message: "Internal Server Error", error: err });
+    }
+})
+
+app.post("/todo-resume", isAuthMiddleware, async (req, res) => {
+    const { id } = req.body;
+    try {
+        const task = await todoModel.findOne({ _id: id });
+        if (!task) {
+            return res.status(404).json({ message: "Todo Not Found" });
+        }
+        if (task.status !== 'Paused') return res.status(400).json({ message: 'Task is not paused' });
+
+        task.startTime = Date.now() - task.elapsedTime;
+        task.status = 'Ongoing';
+        await task.save();
+        return res.status(200).json({ message: "Task is resumed", data: task });
+    }
+    catch (err) {
+        return res.status(500).json({ message: "Internal Server Error", error: err });
+    }
+})
+
+app.post("/todo-end", isAuthMiddleware, async (req, res) => {
+
+    const { id } = req.body;
+    try {
+        const task = await todoModel.findOne({ _id: id });
+        if (!task) {
+            return res.status(404).json({ message: "Todo Not Found" });
+        }
+        if (task.status === 'Completed') return res.status(400).json({ message: 'Task is already completed' });
+
+        const elapsedTime = Date.now() - new Date(task.startTime) || 0;
+        task.elapsedTime += elapsedTime;
+        task.status = 'Complete';
+        await task.save();
+        return res.status(200).json({ message: "Task is completed", data: task });
+    }
+    catch (err) {
+        console.log(err);
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
 })
