@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
 const mongodbSession = require("connect-mongodb-session")(session);
+const cors = require('cors');
 
 
 //file import
@@ -13,6 +14,12 @@ const { registrationValidation, loginValidation, isEmailValidate } = require("./
 const isAuthMiddleware = require("./middleware/isAuthaMiddleware");
 const todoValidation = require("./utils/todoUtlis");
 const todoModel = require("./modals/todoModel");
+const corsOptions = {
+    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
+    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+
 
 
 //constant
@@ -23,6 +30,7 @@ const store = new mongodbSession({
     uri: MONGO_URI,
     collection: "sessions",
 })
+app.use(cors(corsOptions));
 
 
 //middleware
