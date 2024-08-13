@@ -14,10 +14,7 @@ const { registrationValidation, loginValidation, isEmailValidate } = require("./
 const isAuthMiddleware = require("./middleware/isAuthaMiddleware");
 const todoValidation = require("./utils/todoUtlis");
 const todoModel = require("./modals/todoModel");
-const corsOptions = {
-    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
-    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
-};
+
 
 
 
@@ -30,7 +27,7 @@ const store = new mongodbSession({
     uri: MONGO_URI,
     collection: "sessions",
 })
-app.use(cors(corsOptions));
+
 
 
 //middleware
@@ -41,8 +38,15 @@ app.use(session({
     store: store,
     saveUninitialized: false,
     resave: false,
+    cookie: {
+        secure: true, // Set to true if your frontend is served over HTTPS
+        sameSite: 'none' // Allows cross-site cookies (required for cross-origin requests)
+    }
 }))
-
+app.use(cors({
+    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
+    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+}));
 
 
 
@@ -315,7 +319,7 @@ app.post("/todo-pause", isAuthMiddleware, async (req, res) => {
         task.pauseTime = Date.now();
         task.status = 'Paused';
         await task.save();
-        return res.status(200).json({message: "Task is Paused", data: task});
+        return res.status(200).json({ message: "Task is Paused", data: task });
     }
     catch (err) {
         return res.status(500).json({ message: "Internal Server Error", error: err });
