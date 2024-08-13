@@ -31,21 +31,23 @@ const store = new mongodbSession({
 
 
 //middleware
+app.use(cors({
+    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
+    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+}));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
 app.use(session({
     secret: process.env.SECRET_KEY,
     store: store,
     saveUninitialized: false,
     resave: false,
     cookie: {
-        secure: true, // Set to true if your frontend is served over HTTPS
+        secure: true, // Secure cookie if in production
         sameSite: 'none' // Allows cross-site cookies (required for cross-origin requests)
     }
-}))
-app.use(cors({
-    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
-    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
 }));
 
 
