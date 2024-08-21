@@ -2,18 +2,20 @@ const express = require("express");
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
-const session = require("express-session");
-const mongodbSession = require("connect-mongodb-session")(session);
+// const session = require("express-session");
+// const mongodbSession = require("connect-mongodb-session")(session);
 const cors = require('cors');
+const jwt = require("jsonwebtoken");
 
 
 //file import
 const userModel = require("./modals/userModel");
-const sessionModel = require("./modals/sessionModel");
+// const sessionModel = require("./modals/sessionModel");
 const { registrationValidation, loginValidation, isEmailValidate } = require("./utils/authUtils");
 const isAuthMiddleware = require("./middleware/isAuthaMiddleware");
 const todoValidation = require("./utils/todoUtlis");
 const todoModel = require("./modals/todoModel");
+const rateLimitingMiddleware = require("./middleware/rateLimitingMiddleware");
 
 
 
@@ -23,32 +25,28 @@ const todoModel = require("./modals/todoModel");
 const app = express();
 const PORT = 8000;
 const MONGO_URI = process.env.MONGO_URI;
-const store = new mongodbSession({
-    uri: MONGO_URI,
-    collection: "sessions",
-})
+// const store = new mongodbSession({
+//     uri: MONGO_URI,
+//     collection: "sessions",
+// })
 
 
 
-//middleware
+// middleware
 app.use(cors({
-    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
+    origin: 'http://localhost:8000',
     credentials: true, // Allow credentials (cookies, authorization headers, etc.)
 }));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.use(session({
-    secret: process.env.SECRET_KEY,
-    store: store,
-    saveUninitialized: false,
-    resave: false,
-    cookie: {
-        secure: true, // Secure cookie if in production
-        sameSite: 'none' // Allows cross-site cookies (required for cross-origin requests)
-    }
-}));
+// app.use(session({
+//     secret: process.env.SECRET_KEY,
+//     store: store,
+//     saveUninitialized: false,
+//     resave: false,
+// }));
 
 
 
@@ -58,10 +56,6 @@ mongoose.connect(MONGO_URI).then(() => console.log("mongodb conected")).catch((e
 
 app.get("/", (req, res) => {
     return res.send("Hello World!");
-})
-
-app.get("/authentication", (req, res) => {
-    return res.status(200).json({ message: "Person is authorized", isAuth: req.session.isAuth || false });
 })
 
 
@@ -105,16 +99,7 @@ app.post("/register", async (req, res) => {
 
 })
 
-// app.get("/login", (req, res) => {
-//     console.log(req.session.isAuth);
-//     return res.send(`<form action="/login" method="POST">
-//         <label for="loginId">Email or Username</label>
-//         <input type="text" name="loginId" />
-//         <label for="password">Password</label>
-//         <input type="password" name="password" />
-//         <button type="submit">Submit</button>
-//     </form>`)
-// })
+
 
 app.post("/login", async (req, res) => {
 
@@ -148,57 +133,51 @@ app.post("/login", async (req, res) => {
             return res.status(400).json({ message: "Incorrect Paaword" });
         }
 
-        req.session.isAuth = true;
-        req.session.user = {
+        // req.session.isAuth = true;
+        // req.session.user = {
+        //     userId: userDb._id,
+        //     username: userDb.username,
+        //     email: userDb.email,
+        // }
+        let details = {
             userId: userDb._id,
             username: userDb.username,
             email: userDb.email,
         }
-        return res.status(200).json({ message: "Login Successfull" });
+        let token = jwt.sign(details, process.env.SECRET_KEY, { expiresIn: "2d" });
+
+        return res.status(200).json({ message: "Login Successfull", token: token });
     }
     catch (err) {
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
 })
 
-// app.get("/dashboard", isAuthMiddleware, (req, res) => {
-//     return res.send(`<form action="/logout" method="POST">
-//         <button type="submit">logout</button>
-//     </form>
 
-//     <form action="/logout-from-all-devices" method="POST">
-//         <button type="submit">LOGOUT FROM ALL DEVICES</button>
-//     </form>`);
+
+app.get("/logout", isAuthMiddleware, rateLimitingMiddleware, (req, res) => {
+    return res.status(200).json({ message: "Logout Successfull" });
+})
+
+
+
+// app.get("/logout-from-all-devices", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
+//     try {
+//         const deleteDb = await sessionModel.deleteMany({ "session.user.username": req.session.user.username });
+
+//         console.log(deleteDb);
+
+//         return res.status(200).json({ message: `Logout from ${deleteDb.deletedCount} devices successfull` });
+//     }
+//     catch (err) {
+//         return res.status(500).json({ message: "Internal Server Error", error: err });
+//     }
 // })
 
-app.get("/logout", isAuthMiddleware, (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({ message: "Internal Server Error", error: err });
-        }
-        else {
-            return res.status(200).json({ message: "Logout Successfull" });
-        }
-    })
-})
-
-
-
-app.get("/logout-from-all-devices", isAuthMiddleware, async (req, res) => {
-    try {
-        const deleteDb = await sessionModel.deleteMany({ "session.user.username": req.session.user.username });
-
-        console.log(deleteDb);
-
-        return res.status(200).json({ message: `Logout from ${deleteDb.deletedCount} devices successfull` });
-    }
-    catch (err) {
-        return res.status(500).json({ message: "Internal Server Error", error: err });
-    }
-})
-
-app.post("/create-todo", isAuthMiddleware, async (req, res) => {
+app.post("/create-todo", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { todo } = req.body;
+
+    console.log(todo);
     try {
         await todoValidation(todo);
     }
@@ -209,11 +188,10 @@ app.post("/create-todo", isAuthMiddleware, async (req, res) => {
     try {
         const todoObj = new todoModel({
             title: todo,
-            username: req.session.user.username,
+            username: req.userInfo.username,
         })
 
-        const todoDb = await todoObj.save();
-        console.log(todoDb);
+        await todoObj.save();
         return res.status(201).json({ message: "Todo Create Successfully" });
     }
     catch (err) {
@@ -221,17 +199,31 @@ app.post("/create-todo", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.get("/read-all-todos", isAuthMiddleware, async (req, res) => {
+app.get("/read-all-todos", isAuthMiddleware,async (req, res) => {
+    const skip = req.query.skip || 0;
+    console.log(skip);
     try {
-        const allTodos = await todoModel.find({ username: req.session.user.username });
-        return res.status(200).json({ message: "Read Success", data: allTodos });
+
+        const todoLength = await todoModel.countDocuments({ username: req.userInfo.username });
+
+
+        const allTodos = await todoModel.aggregate([{
+            $match: { username: req.userInfo.username },
+        }, {
+            $skip: Number(skip),
+        }, {
+            $limit: 5,
+        }])
+        return res.status(200).json({ message: "Read Success", data: allTodos, totalTodos: todoLength });
     }
     catch (err) {
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
+
+
 })
 
-app.post("/edit-todo", isAuthMiddleware, async (req, res) => {
+app.post("/edit-todo", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { editId, newTodo } = req.body;
 
     try {
@@ -243,12 +235,11 @@ app.post("/edit-todo", isAuthMiddleware, async (req, res) => {
 
     try {
         const todoDb = await todoModel.findOne({ _id: editId });
-        console.log(todoDb);
         if (!todoDb) {
             return res.status(404).json({ message: "Todo Not Found" });
         }
 
-        if (todoDb.username !== req.session.user.username) {
+        if (todoDb.username !== req.userInfo.username) {
             return res.status(403).json({ message: "Not allow to edit someone todo" });
         }
 
@@ -261,7 +252,7 @@ app.post("/edit-todo", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.post("/delete-todo", isAuthMiddleware, async (req, res) => {
+app.post("/delete-todo", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { deleteId } = req.body;
 
     try {
@@ -270,10 +261,13 @@ app.post("/delete-todo", isAuthMiddleware, async (req, res) => {
             return res.status(404).json({ message: "Todo Not Found" });
         }
 
-        if (todoDb.username !== req.session.user.username) {
+        if (todoDb.username !== req.userInfo.username) {
             return res.status(403).json({ message: "Not allow to delete someone todo" });
         }
 
+        if (todoDb.status === "Ongoing") {
+            return res.status(400).json({ message: "Cannot Delete Ongoing Todo" });
+        }
         const todoDbPrev = await todoModel.findOneAndDelete({ _id: deleteId });
 
         return res.status(200).json({ message: "Todo Deleted Successfull", data: todoDbPrev });
@@ -283,7 +277,7 @@ app.post("/delete-todo", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.post("/todo-start", isAuthMiddleware, async (req, res) => {
+app.post("/todo-start", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { id } = req.body;
     try {
         const task = await todoModel.findOne({ _id: id });
@@ -306,7 +300,7 @@ app.post("/todo-start", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.post("/todo-pause", isAuthMiddleware, async (req, res) => {
+app.post("/todo-pause", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { id } = req.body;
     try {
         const task = await todoModel.findOne({ _id: id });
@@ -328,7 +322,7 @@ app.post("/todo-pause", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.post("/todo-resume", isAuthMiddleware, async (req, res) => {
+app.post("/todo-resume", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
     const { id } = req.body;
     try {
         const task = await todoModel.findOne({ _id: id });
@@ -347,7 +341,7 @@ app.post("/todo-resume", isAuthMiddleware, async (req, res) => {
     }
 })
 
-app.post("/todo-end", isAuthMiddleware, async (req, res) => {
+app.post("/todo-end", isAuthMiddleware, rateLimitingMiddleware, async (req, res) => {
 
     const { id } = req.body;
     try {
