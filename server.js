@@ -34,7 +34,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 // middleware
 app.use(cors({
-    origin: 'http://localhost:8000',
+    origin: 'https://todo-app-frontend-lilac-phi.vercel.app',
     credentials: true, // Allow credentials (cookies, authorization headers, etc.)
 }));
 
